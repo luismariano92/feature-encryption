@@ -567,3 +567,53 @@ button.link.name::before {
   .schedule-card { flex-direction: column; align-items: flex-start; }
   .schedule-card .sched-actions { width: 100%; }
 }
+
+/* ---- Notifications ---- */
+
+.notifications-section {
+  max-width: 1100px;
+  margin: 16px auto 0;
+  padding: 0 16px 16px;
+}
+@media (min-width: 800px) {
+  .notifications-section { padding: 0 24px 24px; }
+}
+
+.notifications-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.notifications-header h2 { margin: 0; border: none; padding: 0; }
+
+.notification-status-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.notification-info { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 160px; }
+.notification-actions { display: flex; gap: 6px; }
+
+.ntfy-result {
+  margin: 8px 0 0;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+}
+.ntfy-result.ok {
+  color: var(--ok);
+  background: rgba(31, 138, 76, 0.08);
+  border: 1px solid var(--ok);
+}
+.ntfy-result.fail {
+  color: var(--danger);
+  background: rgba(192, 53, 43, 0.06);
+  border: 1px solid var(--danger);
+}

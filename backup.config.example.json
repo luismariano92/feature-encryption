@@ -8,5 +8,11 @@
     "remoteRoot": "backups"
   },
   "browseRoots": [],
-  "stateFile": ".backup-state.json"
+  "stateFile": ".backup-state.json",
+  "ntfy": {
+    "enabled": false,
+    "server": "https://ntfy.sh",
+    "topic": "",
+    "token": ""
+  }
 }

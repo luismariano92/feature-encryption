@@ -26,6 +26,12 @@ interface Job {
   failed: { path: string; error: string }[];
   error?: string;
 }
+interface NtfyStatus {
+  enabled: boolean;
+  server: string;
+  topic: string;
+  hasToken: boolean;
+}
 interface ScheduledJob {
   id: string;
   name: string;
@@ -69,6 +75,10 @@ const ui = {
   schedAddPathBtn: el<HTMLButtonElement>("sched-add-path-btn"),
   schedSaveBtn: el<HTMLButtonElement>("sched-save-btn"),
   schedCancelBtn: el<HTMLButtonElement>("sched-cancel-btn"),
+  ntfyStatus: el("ntfy-status"),
+  ntfyDetails: el("ntfy-details"),
+  ntfyTestBtn: el<HTMLButtonElement>("ntfy-test-btn"),
+  ntfyResult: el("ntfy-result"),
 };
 
 let parentPath: string | null = null;
@@ -477,6 +487,49 @@ async function runScheduleNow(id: string): Promise<void> {
   }
 }
 
+async function loadNtfyStatus(): Promise<void> {
+  try {
+    const status = await api<NtfyStatus>("/api/ntfy");
+    if (status.enabled && status.topic) {
+      ui.ntfyStatus.textContent = "Enabled";
+      ui.ntfyStatus.className = "badge ok";
+      ui.ntfyDetails.textContent = `${status.server} / ${status.topic}`;
+      ui.ntfyTestBtn.disabled = false;
+    } else {
+      ui.ntfyStatus.textContent = "Not configured";
+      ui.ntfyStatus.className = "badge";
+      ui.ntfyDetails.textContent = status.enabled ? "No topic set" : "";
+      ui.ntfyTestBtn.disabled = true;
+    }
+  } catch {
+    ui.ntfyStatus.textContent = "Error";
+    ui.ntfyStatus.className = "badge bad";
+    ui.ntfyTestBtn.disabled = true;
+  }
+}
+
+async function sendTestNtfy(): Promise<void> {
+  ui.ntfyTestBtn.disabled = true;
+  ui.ntfyResult.hidden = true;
+  try {
+    const result = await api<{ ok: boolean; error?: string }>("/api/ntfy/test", { method: "POST" });
+    ui.ntfyResult.hidden = false;
+    if (result.ok) {
+      ui.ntfyResult.textContent = "Test notification sent successfully.";
+      ui.ntfyResult.className = "ntfy-result ok";
+    } else {
+      ui.ntfyResult.textContent = `Failed: ${result.error ?? "unknown error"}`;
+      ui.ntfyResult.className = "ntfy-result fail";
+    }
+  } catch (err) {
+    ui.ntfyResult.hidden = false;
+    ui.ntfyResult.textContent = `Error: ${err instanceof Error ? err.message : String(err)}`;
+    ui.ntfyResult.className = "ntfy-result fail";
+  } finally {
+    ui.ntfyTestBtn.disabled = false;
+  }
+}
+
 async function init(): Promise<void> {
   ui.upBtn.addEventListener("click", () => void browse(parentPath));
   ui.backupBtn.addEventListener("click", () => void startBackup());
@@ -487,6 +540,7 @@ async function init(): Promise<void> {
   ui.schedSaveBtn.addEventListener("click", () => void saveSchedule());
   ui.schedAddPathBtn.addEventListener("click", addSchedulePath);
   ui.schedRecurrence.addEventListener("change", updateDaysVisibility);
+  ui.ntfyTestBtn.addEventListener("click", () => void sendTestNtfy());
 
   try {
     const status = await api<Status>("/api/status");
@@ -504,6 +558,7 @@ async function init(): Promise<void> {
   renderSelected();
   await browse(null);
   await loadSchedules();
+  await loadNtfyStatus();
 }
 
 void init();

@@ -9,6 +9,13 @@ export interface WebDavConfig {
   remoteRoot: string;
 }
 
+export interface NtfyConfig {
+  enabled: boolean;
+  server: string;
+  topic: string;
+  token?: string;
+}
+
 export interface Config {
   host: string;
   port: number;
@@ -19,6 +26,7 @@ export interface Config {
   stateFile: string;
   /** Local JSON file storing scheduled backup definitions. */
   schedulesFile: string;
+  ntfy: NtfyConfig;
 }
 
 interface RawConfig {
@@ -28,6 +36,7 @@ interface RawConfig {
   browseRoots?: string[];
   stateFile?: string;
   schedulesFile?: string;
+  ntfy?: Partial<NtfyConfig>;
 }
 
 /**
@@ -38,6 +47,17 @@ interface RawConfig {
 export function loadConfig(file = process.env.BACKUP_CONFIG ?? "backup.config.json"): Config {
   const raw: RawConfig = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
   const dav = raw.webdav ?? {};
+  const ntfyRaw = raw.ntfy ?? {};
+
+  const ntfyServer = process.env.NTFY_SERVER ?? ntfyRaw.server ?? "https://ntfy.sh";
+  if (!/^https?:\/\//.test(ntfyServer)) {
+    throw new Error(`Invalid ntfy server URL: must start with http:// or https://`);
+  }
+  const ntfyTopic = process.env.NTFY_TOPIC ?? ntfyRaw.topic ?? "";
+  if (ntfyTopic && !/^[a-zA-Z0-9_-]+$/.test(ntfyTopic)) {
+    throw new Error(`Invalid ntfy topic: only alphanumeric, hyphens, and underscores are allowed`);
+  }
+
   return {
     host: raw.host ?? "127.0.0.1",
     port: Number(process.env.PORT ?? raw.port ?? 3000),
@@ -50,5 +70,11 @@ export function loadConfig(file = process.env.BACKUP_CONFIG ?? "backup.config.js
     browseRoots: (raw.browseRoots ?? []).map((p) => path.resolve(p)),
     stateFile: path.resolve(raw.stateFile ?? ".backup-state.json"),
     schedulesFile: path.resolve(raw.schedulesFile ?? "backup-schedules.json"),
+    ntfy: {
+      enabled: process.env.NTFY_ENABLED === "true" || (process.env.NTFY_ENABLED === undefined && ntfyRaw.enabled === true),
+      server: ntfyServer,
+      topic: ntfyTopic,
+      token: process.env.NTFY_TOKEN ?? ntfyRaw.token ?? undefined,
+    },
   };
 }

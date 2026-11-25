@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { createJob, runBackup, type Job } from "./backup.js";
 import { isAllowed, listDirs, listRoots } from "./browse.js";
 import { loadConfig } from "./config.js";
+import { sendNtfyNotification, sendTestNotification } from "./notify.js";
 import { Scheduler, type JobRegistry } from "./scheduler.js";
 import { WebDavClient } from "./webdav.js";
 
@@ -102,6 +103,7 @@ async function triggerBackup(paths: string[]): Promise<Job> {
   const client = new WebDavClient(config.webdav);
   await runBackup(job, { client, remoteRoot: config.webdav.remoteRoot, stateFile: config.stateFile });
   jobRegistry.active = null;
+  void sendNtfyNotification(config.ntfy, job);
   return job;
 }
 
@@ -163,6 +165,7 @@ async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, ur
     const client = new WebDavClient(config.webdav);
     void runBackup(job, { client, remoteRoot: config.webdav.remoteRoot, stateFile: config.stateFile }).finally(() => {
       jobRegistry.active = null;
+      void sendNtfyNotification(config.ntfy, job);
     });
     return sendJson(res, 202, { jobId: job.id });
   }
@@ -196,6 +199,7 @@ async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, ur
     const client = new WebDavClient(config.webdav);
     void runBackup(job, { client, remoteRoot: config.webdav.remoteRoot, stateFile: config.stateFile }).finally(() => {
       jobRegistry.active = null;
+      void sendNtfyNotification(config.ntfy, job);
     });
     return sendJson(res, 202, { jobId: job.id });
   }
@@ -228,6 +232,22 @@ async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, ur
     if (!removed) throw new HttpError(404, "Unknown schedule");
     res.writeHead(204);
     return void res.end();
+  }
+
+  // --- Notification routes ---
+
+  if (route === "GET /api/ntfy") {
+    return sendJson(res, 200, {
+      enabled: config.ntfy.enabled,
+      server: config.ntfy.server,
+      topic: config.ntfy.topic,
+      hasToken: !!config.ntfy.token,
+    });
+  }
+
+  if (route === "POST /api/ntfy/test") {
+    const result = await sendTestNotification(config.ntfy);
+    return sendJson(res, 200, result);
   }
 
   throw new HttpError(404, "Not found");
