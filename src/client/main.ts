@@ -59,6 +59,7 @@ const ui = {
   jobSummary: el("job-summary"),
   jobFailures: el<HTMLUListElement>("job-failures"),
   encryptionBadge: el("encryption-badge"),
+  themeToggle: el<HTMLButtonElement>("theme-toggle"),
   addFolderBtn: el<HTMLButtonElement>("add-folder-btn"),
   newScheduleBtn: el<HTMLButtonElement>("new-schedule-btn"),
   scheduleList: el("schedule-list"),
@@ -491,6 +492,26 @@ async function init(): Promise<void> {
   ui.schedSaveBtn.addEventListener("click", () => void saveSchedule());
   ui.schedAddPathBtn.addEventListener("click", addSchedulePath);
   ui.schedRecurrence.addEventListener("change", updateDaysVisibility);
+
+  ui.themeToggle.addEventListener("click", () => {
+    const root = document.documentElement;
+    const current = root.getAttribute("data-theme");
+    let next: string | null;
+    if (!current) next = "dark";
+    else if (current === "dark") next = "light";
+    else next = null;
+
+    if (next) {
+      root.setAttribute("data-theme", next);
+      try { localStorage.setItem("vaultline-theme", next); } catch {}
+    } else {
+      root.removeAttribute("data-theme");
+      try { localStorage.removeItem("vaultline-theme"); } catch {}
+    }
+
+    const icon = ui.themeToggle.querySelector(".material-symbols-outlined");
+    if (icon) icon.textContent = next === "dark" ? "light_mode" : next === "light" ? "brightness_auto" : "dark_mode";
+  });
 
   try {
     const status = await api<Status>("/api/status");
