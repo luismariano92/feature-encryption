@@ -1,0 +1,10 @@
+node_modules/
+dist/
+public/main.js
+.git
+.claude
+*.md
+test/
+backup.config.json
+.backup-state.json
+backup-schedules.json
