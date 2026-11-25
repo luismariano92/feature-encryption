@@ -51,11 +51,12 @@ export class WebDavClient {
     }
   }
 
-  async putFile(remotePath: string, localPath: string, size: number): Promise<void> {
+  async putFile(remotePath: string, localPath: string | Readable, size: number): Promise<void> {
     const url = this.urlFor(remotePath);
+    const body = typeof localPath === "string" ? createReadStream(localPath) : localPath;
     const status = await this.request("PUT", url, {
       headers: { "Content-Length": size, "Content-Type": "application/octet-stream" },
-      body: createReadStream(localPath),
+      body,
     });
     if (status < 200 || status >= 300) throw new Error(`PUT ${url.pathname} failed: HTTP ${status}`);
   }

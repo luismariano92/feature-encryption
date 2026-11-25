@@ -14,6 +14,7 @@ interface Status {
   webdavUrl: string;
   remoteRoot: string;
   activeJobId: string | null;
+  encryption: { enabled: boolean; configured: boolean };
 }
 interface Job {
   id: string;
@@ -23,6 +24,7 @@ interface Job {
   changedFiles: number;
   uploadedFiles: number;
   uploadedBytes: number;
+  encrypted: boolean;
   failed: { path: string; error: string }[];
   error?: string;
 }
@@ -56,6 +58,7 @@ const ui = {
   progressBar: el("progress-bar"),
   jobSummary: el("job-summary"),
   jobFailures: el<HTMLUListElement>("job-failures"),
+  encryptionBadge: el("encryption-badge"),
   addFolderBtn: el<HTMLButtonElement>("add-folder-btn"),
   newScheduleBtn: el<HTMLButtonElement>("new-schedule-btn"),
   scheduleList: el("schedule-list"),
@@ -206,9 +209,10 @@ function renderJob(job: Job): void {
   } else if (job.changedFiles === 0) {
     ui.jobSummary.textContent = `Everything is up to date (${job.totalFiles} files checked).`;
   } else {
+    const encSuffix = job.encrypted ? " (encrypted)" : "";
     ui.jobSummary.textContent =
       `Done: uploaded ${job.uploadedFiles} of ${job.changedFiles} changed files ` +
-      `(${formatBytes(job.uploadedBytes)}); ${job.totalFiles} files checked.`;
+      `(${formatBytes(job.uploadedBytes)}); ${job.totalFiles} files checked.${encSuffix}`;
   }
 
   ui.jobFailures.replaceChildren(
@@ -497,6 +501,16 @@ async function init(): Promise<void> {
       ui.status.textContent = "No server";
     }
     ui.checkBtn.disabled = !configured;
+    if (status.encryption.enabled) {
+      ui.encryptionBadge.hidden = false;
+      if (status.encryption.configured) {
+        ui.encryptionBadge.textContent = "Encrypted";
+        ui.encryptionBadge.className = "badge ok";
+      } else {
+        ui.encryptionBadge.textContent = "Encryption: no password";
+        ui.encryptionBadge.className = "badge bad";
+      }
+    }
     if (status.activeJobId) void followJob(status.activeJobId);
   } catch (err) {
     showError(err);

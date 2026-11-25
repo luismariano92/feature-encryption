@@ -100,7 +100,7 @@ async function triggerBackup(paths: string[]): Promise<Job> {
   for (const id of [...jobRegistry.jobs.keys()].slice(0, Math.max(0, jobRegistry.jobs.size - MAX_JOBS_KEPT))) jobRegistry.jobs.delete(id);
   jobRegistry.active = job;
   const client = new WebDavClient(config.webdav);
-  await runBackup(job, { client, remoteRoot: config.webdav.remoteRoot, stateFile: config.stateFile });
+  await runBackup(job, { client, remoteRoot: config.webdav.remoteRoot, stateFile: config.stateFile, encryption: config.encryption });
   jobRegistry.active = null;
   return job;
 }
@@ -121,6 +121,10 @@ async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, ur
       webdavUrl: config.webdav.url,
       remoteRoot: config.webdav.remoteRoot,
       activeJobId: jobRegistry.active?.id ?? null,
+      encryption: {
+        enabled: config.encryption.enabled,
+        configured: Boolean(config.encryption.password),
+      },
     });
   }
 
@@ -161,7 +165,7 @@ async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, ur
     for (const id of [...jobRegistry.jobs.keys()].slice(0, Math.max(0, jobRegistry.jobs.size - MAX_JOBS_KEPT))) jobRegistry.jobs.delete(id);
     jobRegistry.active = job;
     const client = new WebDavClient(config.webdav);
-    void runBackup(job, { client, remoteRoot: config.webdav.remoteRoot, stateFile: config.stateFile }).finally(() => {
+    void runBackup(job, { client, remoteRoot: config.webdav.remoteRoot, stateFile: config.stateFile, encryption: config.encryption }).finally(() => {
       jobRegistry.active = null;
     });
     return sendJson(res, 202, { jobId: job.id });
@@ -194,7 +198,7 @@ async function handleApi(req: http.IncomingMessage, res: http.ServerResponse, ur
     jobRegistry.jobs.set(job.id, job);
     jobRegistry.active = job;
     const client = new WebDavClient(config.webdav);
-    void runBackup(job, { client, remoteRoot: config.webdav.remoteRoot, stateFile: config.stateFile }).finally(() => {
+    void runBackup(job, { client, remoteRoot: config.webdav.remoteRoot, stateFile: config.stateFile, encryption: config.encryption }).finally(() => {
       jobRegistry.active = null;
     });
     return sendJson(res, 202, { jobId: job.id });
@@ -261,6 +265,7 @@ const server = http.createServer(async (req, res) => {
 server.listen(config.port, config.host, () => {
   console.log(`Backup tool running at http://${config.host}:${config.port}`);
   if (!config.webdav.url) console.warn("WebDAV is not configured: copy backup.config.example.json to backup.config.json.");
+  if (config.encryption.enabled && !config.encryption.password) console.warn("Encryption is enabled but no password is set; backups will not be encrypted.");
   if (config.host !== "127.0.0.1" && config.host !== "localhost") {
     console.warn("Warning: the server is reachable from other machines and can read and upload local folders.");
   }

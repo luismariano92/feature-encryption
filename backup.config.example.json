@@ -8,5 +8,9 @@
     "remoteRoot": "backups"
   },
   "browseRoots": [],
-  "stateFile": ".backup-state.json"
+  "stateFile": ".backup-state.json",
+  "encryption": {
+    "enabled": false,
+    "password": ""
+  }
 }

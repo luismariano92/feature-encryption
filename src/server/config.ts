@@ -19,6 +19,7 @@ export interface Config {
   stateFile: string;
   /** Local JSON file storing scheduled backup definitions. */
   schedulesFile: string;
+  encryption: { enabled: boolean; password: string };
 }
 
 interface RawConfig {
@@ -28,6 +29,7 @@ interface RawConfig {
   browseRoots?: string[];
   stateFile?: string;
   schedulesFile?: string;
+  encryption?: { enabled?: boolean; password?: string };
 }
 
 /**
@@ -38,6 +40,7 @@ interface RawConfig {
 export function loadConfig(file = process.env.BACKUP_CONFIG ?? "backup.config.json"): Config {
   const raw: RawConfig = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
   const dav = raw.webdav ?? {};
+  const encRaw = raw.encryption ?? {};
   return {
     host: raw.host ?? "127.0.0.1",
     port: Number(process.env.PORT ?? raw.port ?? 3000),
@@ -50,5 +53,9 @@ export function loadConfig(file = process.env.BACKUP_CONFIG ?? "backup.config.js
     browseRoots: (raw.browseRoots ?? []).map((p) => path.resolve(p)),
     stateFile: path.resolve(raw.stateFile ?? ".backup-state.json"),
     schedulesFile: path.resolve(raw.schedulesFile ?? "backup-schedules.json"),
+    encryption: {
+      enabled: process.env.ENCRYPTION_ENABLED === "true" || Boolean(encRaw.enabled),
+      password: process.env.ENCRYPTION_PASSWORD ?? encRaw.password ?? "",
+    },
   };
 }

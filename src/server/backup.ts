@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
+import { encryptFile } from "./crypto.js";
 import { changedFiles, loadState, saveState } from "./manifest.js";
 import { scanDirectory } from "./scanner.js";
 import type { WebDavClient } from "./webdav.js";
@@ -18,6 +19,7 @@ export interface Job {
   uploadedBytes: number;
   /** Per-file problems; the job keeps going past them. */
   failed: { path: string; error: string }[];
+  encrypted: boolean;
   /** Set only when the whole job aborted. */
   error?: string;
 }
@@ -32,6 +34,7 @@ export function createJob(sources: string[]): Job {
     changedFiles: 0,
     uploadedFiles: 0,
     uploadedBytes: 0,
+    encrypted: false,
     failed: [],
   };
 }
@@ -56,8 +59,10 @@ const message = (err: unknown) => (err instanceof Error ? err.message : String(e
  */
 export async function runBackup(
   job: Job,
-  opts: { client: WebDavClient; remoteRoot: string; stateFile: string },
+  opts: { client: WebDavClient; remoteRoot: string; stateFile: string; encryption?: { enabled: boolean; password: string } },
 ): Promise<void> {
+  const encrypt = opts.encryption?.enabled && opts.encryption.password ? opts.encryption : null;
+  job.encrypted = Boolean(encrypt);
   const state = await loadState(opts.stateFile);
   try {
     for (const source of job.sources) {
@@ -68,7 +73,7 @@ export async function runBackup(
 
       const { files, skipped } = await scanDirectory(abs);
       for (const p of skipped) job.failed.push({ path: p, error: "Could not read; skipped" });
-      const changed = changedFiles(files, entry.files);
+      const changed = changedFiles(files, entry.files, Boolean(encrypt));
       job.totalFiles += files.length;
       job.changedFiles += changed.length;
 
@@ -77,8 +82,14 @@ export async function runBackup(
         const remotePath = `${remoteBase}/${f.relPath}`;
         try {
           await opts.client.ensureDir(path.posix.dirname(remotePath));
-          await opts.client.putFile(remotePath, f.absPath, f.size);
-          entry.files[f.relPath] = { size: f.size, mtimeMs: f.mtimeMs };
+          if (encrypt) {
+            const { stream, size } = encryptFile(f.absPath, f.size, encrypt.password);
+            await opts.client.putFile(remotePath, stream, size);
+            entry.files[f.relPath] = { size: f.size, mtimeMs: f.mtimeMs, encrypted: true };
+          } else {
+            await opts.client.putFile(remotePath, f.absPath, f.size);
+            entry.files[f.relPath] = { size: f.size, mtimeMs: f.mtimeMs };
+          }
           job.uploadedFiles++;
           job.uploadedBytes += f.size;
         } catch (err) {

@@ -4,6 +4,7 @@ import type { FileEntry } from "./scanner.js";
 export interface FileRecord {
   size: number;
   mtimeMs: number;
+  encrypted?: boolean;
 }
 
 export interface SourceState {
@@ -36,10 +37,12 @@ export async function saveState(file: string, state: BackupState): Promise<void>
   await rename(tmp, file);
 }
 
-/** Files that are new, or whose size or mtime differ from the last successful upload. */
-export function changedFiles(files: FileEntry[], previous: Record<string, FileRecord>): FileEntry[] {
+/** Files that are new, whose size or mtime differ, or whose encryption status changed. */
+export function changedFiles(files: FileEntry[], previous: Record<string, FileRecord>, encrypted?: boolean): FileEntry[] {
   return files.filter((f) => {
     const prev = previous[f.relPath];
-    return !prev || prev.size !== f.size || prev.mtimeMs !== f.mtimeMs;
+    if (!prev) return true;
+    if (prev.size !== f.size || prev.mtimeMs !== f.mtimeMs) return true;
+    return Boolean(prev.encrypted) !== Boolean(encrypted);
   });
 }

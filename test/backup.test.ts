@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createJob, remoteNameFor, runBackup } from "../src/server/backup.js";
+import { MAGIC } from "../src/server/crypto.js";
 import { loadState } from "../src/server/manifest.js";
 import { WebDavClient } from "../src/server/webdav.js";
 import { startFakeDav } from "./fake-webdav.js";
@@ -21,9 +22,9 @@ async function setup(opts?: Parameters<typeof startFakeDav>[0]) {
   await writeFile(path.join(source, "a.txt"), "alpha");
   await writeFile(path.join(source, "sub", "b.txt"), "beta");
   const stateFile = path.join(work, "state.json");
-  const run = async () => {
+  const run = async (encryption?: { enabled: boolean; password: string }) => {
     const job = createJob([source]);
-    await runBackup(job, { client: new WebDavClient({ url: dav!.url }), remoteRoot: "/backups/", stateFile });
+    await runBackup(job, { client: new WebDavClient({ url: dav!.url }), remoteRoot: "/backups/", stateFile, encryption });
     return job;
   };
   const remote = (rel: string) => `/dav/backups/${remoteNameFor(source)}/${rel}`;
@@ -66,5 +67,39 @@ describe("runBackup", () => {
   it("gives same-named sources different remote folders", () => {
     expect(remoteNameFor("/one/Docs")).not.toBe(remoteNameFor("/two/Docs"));
     expect(remoteNameFor("/one/Docs")).toMatch(/^Docs-[0-9a-f]{8}$/);
+  });
+
+  it("uploads encrypted files when encryption is enabled", async () => {
+    const { dav, run, remote } = await setup();
+    await run({ enabled: true, password: "s3cret" });
+    const uploaded = dav.files.get(remote("a.txt"))!;
+    expect(uploaded.subarray(0, 4).toString()).toBe("BKUP");
+  });
+
+  it("re-uploads files when encryption setting changes", async () => {
+    const { dav, run, remote } = await setup();
+
+    const first = await run();
+    expect(first).toMatchObject({ changedFiles: 2, uploadedFiles: 2 });
+    expect(dav.files.get(remote("a.txt"))!.toString()).toBe("alpha");
+
+    const second = await run({ enabled: true, password: "s3cret" });
+    expect(second).toMatchObject({ changedFiles: 2, uploadedFiles: 2 });
+    expect(dav.files.get(remote("a.txt"))!.subarray(0, 4).toString()).toBe("BKUP");
+  });
+
+  it("skips encryption when password is empty", async () => {
+    const { dav, run, remote } = await setup();
+    await run({ enabled: true, password: "" });
+    expect(dav.files.get(remote("a.txt"))!.toString()).toBe("alpha");
+  });
+
+  it("encrypted field is set on job", async () => {
+    const { run } = await setup();
+    const plainJob = await run();
+    expect(plainJob.encrypted).toBe(false);
+
+    const encJob = await run({ enabled: true, password: "s3cret" });
+    expect(encJob.encrypted).toBe(true);
   });
 });
